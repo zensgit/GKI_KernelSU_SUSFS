@@ -43,5 +43,50 @@ runs:
         
         echo "deprecated=$DEPRECATED" >> $GITHUB_OUTPUT
         
+        # Sync only the minimal project set required by android16-6.12 Kleaf builds.
+        # This keeps CI runtime down and avoids pulling unrelated repos.
+        PROJECTS=(
+          build/kernel
+          common
+          common-modules/trusty
+          common-modules/virtual-device
+          common-modules/virtio-media
+          external/bazel-contrib-bazel_features
+          external/bazel-skylib
+          external/bazelbuild-bazel-central-registry
+          external/bazelbuild-platforms
+          external/bazelbuild-rules_cc
+          external/bazelbuild-rules_license
+          external/bazelbuild-rules_pkg
+          external/bazelbuild-rules_python
+          external/bazelbuild-rules_rust
+          external/bazelbuild-rules_shell
+          external/libcap
+          external/libcap-ng
+          external/lz4
+          external/pigz
+          external/python/absl-py
+          external/toybox
+          external/zlib
+          external/zopfli
+          prebuilts/build-tools
+          prebuilts/clang-tools
+          prebuilts/clang/host/linux-x86
+          prebuilts/gcc/linux-x86/host/x86_64-linux-glibc2.17-4.8
+          prebuilts/jdk/jdk11
+          prebuilts/kernel-build-tools
+          prebuilts/ndk-r26
+          prebuilts/rust
+          tools/mkbootimg
+        )
+
         # Sync kernel source
-        repo --trace sync -c -j$(nproc --all) --fail-fast --no-tags --force-sync --no-clone-bundle
+        repo --trace sync \
+          -c \
+          -j"$(nproc --all)" \
+          --fail-fast \
+          --force-sync \
+          --no-clone-bundle \
+          --no-tags \
+          --optimized-fetch \
+          "${PROJECTS[@]}"

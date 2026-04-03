@@ -31,6 +31,9 @@ runs:
           git ls-remote "$1" "$2" | awk '{print $1}'
         }
 
+        ANYKERNEL_REPO="https://github.com/${{ github.repository_owner }}/AnyKernel3.git"
+        PATCHES_REPO="https://github.com/${{ github.repository_owner }}/kernel_patches.git"
+
         echo "Fetching latest commits..."
         
         # Wild KSU
@@ -52,12 +55,12 @@ runs:
         echo "ksu_commit=$ksu_commit" >> $GITHUB_OUTPUT
         
         # AnyKernel3
-        AK3_COMMIT=$(get_commit "https://github.com/WildKernels/AnyKernel3.git" "refs/heads/gki-2.0")
+        AK3_COMMIT=$(get_commit "$ANYKERNEL_REPO" "refs/heads/gki-2.0")
         echo "AnyKernel3: $AK3_COMMIT"
         echo "anykernel_commit=$AK3_COMMIT" >> $GITHUB_OUTPUT
         
         # Kernel Patches
-        PATCHES_COMMIT=$(get_commit "https://github.com/WildKernels/kernel_patches.git" "HEAD")
+        PATCHES_COMMIT=$(get_commit "$PATCHES_REPO" "refs/heads/main")
         echo "Kernel Patches: $PATCHES_COMMIT"
         echo "patches_commit=$PATCHES_COMMIT" >> $GITHUB_OUTPUT
         
