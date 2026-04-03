@@ -4,6 +4,9 @@ inputs:
   kernel_version:
     description: 'Kernel version (e.g., 6.6)'
     required: true
+  variant:
+    description: 'Optional device variant (e.g., Nezha)'
+    required: false
 
 runs:
   using: "composite"
@@ -54,3 +57,17 @@ runs:
       if: inputs.kernel_version == '5.10'
       run: |
         sed -i 's/CONFIG_IP_SET_MAX/65534/g' net/netfilter/ipset/ip_set_core.c
+
+    - name: Append Nezha 6.12 Stock-Aligned Fragment
+      shell: bash
+      if: ${{ inputs.kernel_version == '6.12' && inputs.variant == 'Nezha' }}
+      working-directory: ${{ github.workspace }}/kernel
+      run: |
+        FRAGMENT="${{ github.workspace }}/kernel_patches/xiaomi/nezha/6.12/wild_gki.nezha.fragment"
+        if [[ -f "$FRAGMENT" ]]; then
+          printf '\n# Nezha 6.12 stock-aligned fragment\n' >> "${{ github.workspace }}/wild_gki.fragment"
+          cat "$FRAGMENT" >> "${{ github.workspace }}/wild_gki.fragment"
+        else
+          echo "Missing Nezha fragment: $FRAGMENT"
+          exit 1
+        fi

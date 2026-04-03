@@ -1,9 +1,12 @@
 name: 'Apply Device-Specific Patches'
-description: 'Apply WiFi/Bluetooth fixes for Samsung and Xiaomi 6.6 GKI devices'
+description: 'Apply device-specific compatibility fixes for Samsung/Xiaomi GKI devices'
 inputs:
   kernel_version:
     description: 'Kernel version (e.g., 6.6)'
     required: true
+  variant:
+    description: 'Optional device variant (e.g., Nezha)'
+    required: false
 
 runs:
   using: "composite"
@@ -33,3 +36,14 @@ runs:
       run: |
         SYMBOL_LIST=android/abi_gki_aarch64_xiaomi
         echo "device_find_any_child" >> $SYMBOL_LIST
+
+    - name: Apply Xiaomi Nezha 6.12 Compatibility Layer
+      if: ${{ inputs.kernel_version == '6.12' && inputs.variant == 'Nezha' }}
+      shell: bash
+      working-directory: ${{ github.workspace }}/kernel/common
+      run: |
+        HELPER="${{ github.workspace }}/kernel_patches/xiaomi/nezha/6.12/apply-device-patches.sh"
+        if [[ ! -x "$HELPER" ]]; then
+          chmod +x "$HELPER"
+        fi
+        "$HELPER" "$PWD"

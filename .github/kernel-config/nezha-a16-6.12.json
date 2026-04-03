@@ -1,0 +1,8 @@
+{
+  "include": [
+    {
+      "kernel_version": "6.12.23-android16-2025-06",
+      "variant": "Nezha"
+    }
+  ]
+}

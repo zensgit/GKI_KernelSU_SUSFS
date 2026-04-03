@@ -98,30 +98,32 @@ jobs:
         curl -L https://storage.googleapis.com/git-repo-downloads/repo -o "$GITHUB_WORKSPACE/git-repo/repo"
         chmod +x "$GITHUB_WORKSPACE/git-repo/repo"
         echo "$GITHUB_WORKSPACE/git-repo" >> "$GITHUB_PATH"
+        PATCHES_REPO="https://github.com/${{ github.repository_owner }}/kernel_patches.git"
+        ANYKERNEL_REPO="https://github.com/${{ github.repository_owner }}/AnyKernel3.git"
         
         # Clone patches if commit is provided
         if [ -n "${{ inputs.patches_commit }}" ]; then
           echo "Cloning Kernel Patches at commit ${{ inputs.patches_commit }}"
           if [ -d "$GITHUB_WORKSPACE/kernel_patches" ]; then rm -rf "$GITHUB_WORKSPACE/kernel_patches"; fi
-          git clone https://github.com/WildKernels/kernel_patches.git "$GITHUB_WORKSPACE/kernel_patches"
+          git clone "$PATCHES_REPO" "$GITHUB_WORKSPACE/kernel_patches"
           cd "$GITHUB_WORKSPACE/kernel_patches"
           git checkout "${{ inputs.patches_commit }}"
           cd "$GITHUB_WORKSPACE"
         else
-          git clone https://github.com/WildKernels/kernel_patches.git "$GITHUB_WORKSPACE/kernel_patches"
+          git clone "$PATCHES_REPO" "$GITHUB_WORKSPACE/kernel_patches"
         fi
 
         # Use specific commit if provided
         if [ -n "${{ inputs.anykernel_commit }}" ]; then
           echo "Cloning AnyKernel3 at commit ${{ inputs.anykernel_commit }}"
           if [ -d "$GITHUB_WORKSPACE/AnyKernel3" ]; then rm -rf "$GITHUB_WORKSPACE/AnyKernel3"; fi
-          git clone https://github.com/WildKernels/AnyKernel3.git "$GITHUB_WORKSPACE/AnyKernel3"
+          git clone "$ANYKERNEL_REPO" "$GITHUB_WORKSPACE/AnyKernel3"
           cd "$GITHUB_WORKSPACE/AnyKernel3"
           git checkout "${{ inputs.anykernel_commit }}"
           cd "$GITHUB_WORKSPACE"
         elif [ ! -d "$GITHUB_WORKSPACE/AnyKernel3" ]; then
            # Fallback if not downloaded
-           git clone https://github.com/WildKernels/AnyKernel3.git -b gki-2.0 "$GITHUB_WORKSPACE/AnyKernel3"
+           git clone "$ANYKERNEL_REPO" -b gki-2.0 "$GITHUB_WORKSPACE/AnyKernel3"
         fi
 
     - name: Download Kernel Repository
@@ -209,7 +211,7 @@ jobs:
       uses: ./.github/actions/bbg
 
     - name: Apply Module Check Bypass
-      if: ${{ inputs.variant == 'Bypass' || inputs.variant == 'Hakan' }}
+      if: ${{ inputs.variant == 'Bypass' || inputs.variant == 'Hakan' || inputs.variant == 'Nezha' }}
       run: |
         if [[ "$KERNEL_VERSION" == "6.1" || "$KERNEL_VERSION" == "6.6" || "$KERNEL_VERSION" == "6.12" ]]; then
           TARGET_FILE="$GITHUB_WORKSPACE/kernel/common/kernel/module/version.c"
@@ -232,11 +234,13 @@ jobs:
       uses: ./.github/actions/apply-device-patches
       with:
         kernel_version: ${{ steps.parse.outputs.kernel_version }}
+        variant: ${{ inputs.variant }}
 
     - name: Configure Kernel Options
       uses: ./.github/actions/configure-kernel
       with:
         kernel_version: ${{ steps.parse.outputs.kernel_version }}
+        variant: ${{ inputs.variant }}
 
     - name: Setup Hakan
       if: ${{ inputs.variant == 'Hakan' }}
