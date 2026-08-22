@@ -27,6 +27,12 @@ conflicts are resolved in a temporary staging tree, converted into one clean
 patch, hash-checked, and then applied to the real build tree with
 `git apply --check`.
 
+Kleaf does not expose the separate KernelSU Next Git metadata inside its
+sandbox. A hash-pinned patch therefore seeds the already-validated revision
+count (`3214`) and exact tag (`v3.3.0`) before KernelSU computes version
+`33214`. The workflow rejects any fallback version or tag in both the build log
+and final Image.
+
 A successful run uploads only validated build artifacts. The resulting Image
 still requires local stock-boot repacking and a temporary `fastboot boot`
 test before any persistent flash.

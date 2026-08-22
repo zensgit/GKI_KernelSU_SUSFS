@@ -12,11 +12,24 @@ ARTIFACT_DIR=$3
 IMAGE="$DIST_DIR/Image"
 STOCK_IMAGE_SHA256=81181e8321e655acbce601faff94ab1610f9b825869a56a1c0e5bfcf9db1126c
 EXPECTED_RELEASE=6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k
+EXPECTED_KSU_VERSION=33214
+EXPECTED_KSU_TAG=v3.3.0
 
 test -s "$IMAGE"
 custom_sha=$(sha256sum "$IMAGE" | awk '{print $1}')
 test "$custom_sha" != "$STOCK_IMAGE_SHA256"
 strings "$IMAGE" | grep -F "Linux version $EXPECTED_RELEASE"
+strings "$IMAGE" | grep -Fx "$EXPECTED_KSU_TAG"
+if strings "$IMAGE" | grep -Fx 'v0.0.1' >/dev/null; then
+  echo 'unexpected KernelSU fallback tag v0.0.1 in Image' >&2
+  exit 1
+fi
+grep -qx 'KSU_GIT_VERSION := 3214' \
+  "$KERNEL_ROOT/KernelSU-Next/kernel/Kbuild"
+grep -qx "KSU_GIT_TAG := $EXPECTED_KSU_TAG" \
+  "$KERNEL_ROOT/KernelSU-Next/kernel/Kbuild"
+test "$(grep -xc 'KSU_GIT_VERSION_VALID := 1' \
+  "$KERNEL_ROOT/KernelSU-Next/kernel/Kbuild")" = 2
 
 mkdir -p "$ARTIFACT_DIR"
 "$KERNEL_ROOT/common/scripts/extract-ikconfig" "$IMAGE" \
@@ -53,9 +66,9 @@ for required_artifact in kernel_aarch64_Module.symvers System.map abi.stg abi-fu
 done
 install -m 0644 "$KERNEL_ROOT/xuanyuan-build-pins.txt" \
   "$ARTIFACT_DIR/xuanyuan-build-pins.txt"
-printf 'kernel_release=%s\nimage_size=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
-  "$EXPECTED_RELEASE" "$(stat -c %s "$IMAGE")" \
-  "$STOCK_IMAGE_SHA256" "$custom_sha" \
+printf 'kernel_release=%s\nksu_version=%s\nksu_tag=%s\nimage_size=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
+  "$EXPECTED_RELEASE" "$EXPECTED_KSU_VERSION" "$EXPECTED_KSU_TAG" \
+  "$(stat -c %s "$IMAGE")" "$STOCK_IMAGE_SHA256" "$custom_sha" \
   > "$ARTIFACT_DIR/build-metadata.txt"
 (
   cd "$ARTIFACT_DIR"

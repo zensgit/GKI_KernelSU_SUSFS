@@ -114,6 +114,20 @@ jobs:
             --dist_dir="$GITHUB_WORKSPACE/out/custom-dist" \
             --flat \
             2>&1 | tee "$GITHUB_WORKSPACE/kernel-build.log"
+          grep -Fqx -- '-- KernelSU-Next version: 33214' \
+            "$GITHUB_WORKSPACE/kernel-build.log"
+          grep -Fqx -- '-- KernelSU-Next tag: v3.3.0' \
+            "$GITHUB_WORKSPACE/kernel-build.log"
+          if grep -Fq -- 'KernelSU-Next version fallback:' \
+            "$GITHUB_WORKSPACE/kernel-build.log"; then
+            echo 'unexpected KernelSU version fallback in build log' >&2
+            exit 1
+          fi
+          if grep -Fq -- 'KernelSU-Next tag fallback:' \
+            "$GITHUB_WORKSPACE/kernel-build.log"; then
+            echo 'unexpected KernelSU tag fallback in build log' >&2
+            exit 1
+          fi
 
       - name: Run AOSP kernel tests
         shell: bash

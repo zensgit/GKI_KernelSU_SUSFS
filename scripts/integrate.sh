@@ -15,10 +15,14 @@ FIX_DIR="$KERNEL_ROOT/kernel_patches"
 
 COMMON_SHA=e56cf6b09cca2151bcee244b3d334fb68685ff57
 KSU_SHA=3b18216f71df189ab3d1b1ce0bdb21be1268e771
+KSU_REV_COUNT=3214
+KSU_VERSION=33214
+KSU_TAG=v3.3.0
 SUSFS_SHA=e7b28525f69ca5864bed7db51f77663f5adfe218
 FIX_SHA=757201d983e2549dc7945a21fa6a056eb2e55263
 KSU_COMBINED_SHA256=944509d27414c9c9c4e728fa17aad447fda4ccd9c50474ee7ce28b6cce5a1476
 KERNEL_COMBINED_SHA256=b21dd46c037ae5f68c8c0d4a36c73dfd4f686cb704190a49f6f579402625fc9c
+KSU_VERSION_PATCH_SHA256=30be6b8072122a946b22fbf13722a1dae276213127dfbe903783f1db15023d5b
 
 test "$(git -C "$COMMON_DIR" rev-parse HEAD)" = "$COMMON_SHA"
 test -z "$(git -C "$COMMON_DIR" status --porcelain)"
@@ -26,7 +30,9 @@ test -z "$(git -C "$COMMON_DIR" status --porcelain)"
 git clone --filter=blob:none https://github.com/KernelSU-Next/KernelSU-Next.git "$KSU_DIR"
 git -C "$KSU_DIR" checkout --detach "$KSU_SHA"
 test "$(git -C "$KSU_DIR" rev-parse HEAD)" = "$KSU_SHA"
-test "$(git -C "$KSU_DIR" rev-list --count HEAD)" = 3214
+test "$(git -C "$KSU_DIR" rev-list --count HEAD)" = "$KSU_REV_COUNT"
+test "$(git -C "$KSU_DIR" describe --tags --exact-match HEAD)" = "$KSU_TAG"
+test "$KSU_VERSION" = "$((30000 + KSU_REV_COUNT))"
 
 git clone --filter=blob:none --no-checkout https://gitlab.com/simonpunk/susfs4ksu.git "$SUSFS_DIR"
 git -C "$SUSFS_DIR" checkout --detach "$SUSFS_SHA"
@@ -80,6 +86,13 @@ test "$(git -C "$stage_ksu" diff --name-only -- kernel | wc -l | tr -d ' ')" = 2
 echo "$KSU_COMBINED_SHA256  $ksu_combined" | sha256sum -c -
 git -C "$KSU_DIR" apply --check "$ksu_combined"
 git -C "$KSU_DIR" apply "$ksu_combined"
+version_patch="$RECIPE_ROOT/patches/ksun-version-pin.patch"
+echo "$KSU_VERSION_PATCH_SHA256  $version_patch" | sha256sum -c -
+git -C "$KSU_DIR" apply --check "$version_patch"
+git -C "$KSU_DIR" apply "$version_patch"
+grep -qx "KSU_GIT_VERSION := $KSU_REV_COUNT" "$KSU_DIR/kernel/Kbuild"
+grep -qx "KSU_GIT_TAG := $KSU_TAG" "$KSU_DIR/kernel/Kbuild"
+test "$(grep -xc 'KSU_GIT_VERSION_VALID := 1' "$KSU_DIR/kernel/Kbuild")" = 2
 test -z "$(find "$KSU_DIR/kernel" -type f \( -name '*.rej' -o -name '*.orig' \) -print)"
 git -C "$KSU_DIR" worktree remove --force "$stage_ksu"
 rm -f "$ksu_combined"
@@ -140,7 +153,8 @@ GIT_COMMITTER_DATE='1779954526 +0000' \
   git -C "$COMMON_DIR" commit -m 'xuanyuan: add KernelSU Next 3.3.0 and SUSFS 2.2.0'
 test -z "$(git -C "$COMMON_DIR" status --porcelain)"
 
-printf 'COMMON_BASE=%s\nKSU=%s\nSUSFS=%s\nFIXES=%s\nKSU_COMBINED_SHA256=%s\nKERNEL_COMBINED_SHA256=%s\n' \
-  "$COMMON_SHA" "$KSU_SHA" "$SUSFS_SHA" "$FIX_SHA" \
-  "$KSU_COMBINED_SHA256" "$KERNEL_COMBINED_SHA256" \
+printf 'COMMON_BASE=%s\nKSU=%s\nKSU_REV_COUNT=%s\nKSU_VERSION=%s\nKSU_TAG=%s\nSUSFS=%s\nFIXES=%s\nKSU_COMBINED_SHA256=%s\nKSU_VERSION_PATCH_SHA256=%s\nKERNEL_COMBINED_SHA256=%s\n' \
+  "$COMMON_SHA" "$KSU_SHA" "$KSU_REV_COUNT" "$KSU_VERSION" "$KSU_TAG" \
+  "$SUSFS_SHA" "$FIX_SHA" "$KSU_COMBINED_SHA256" \
+  "$KSU_VERSION_PATCH_SHA256" "$KERNEL_COMBINED_SHA256" \
   > "$KERNEL_ROOT/xuanyuan-build-pins.txt"
