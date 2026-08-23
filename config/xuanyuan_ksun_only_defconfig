@@ -2,3 +2,4 @@ CONFIG_KSU=y
 # CONFIG_KSU_DEBUG is not set
 # CONFIG_KSU_DISABLE_MANAGER is not set
 # CONFIG_KSU_DISABLE_POLICY is not set
+CONFIG_SYSTEM_TRUSTED_KEYS="xuanyuan_stock_module_signing_cert.pem"
