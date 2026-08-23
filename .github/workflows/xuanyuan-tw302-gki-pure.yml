@@ -108,7 +108,6 @@ jobs:
             --make_jobs="$(nproc)" \
             --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
             --config=stamp \
-            --lto=none \
             //common:kernel_aarch64_abi_dist \
             -- \
             --dist_dir="$GITHUB_WORKSPACE/out/pure-dist" \
@@ -126,7 +125,6 @@ jobs:
             --jobs="$(nproc)" \
             --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
             --config=stamp \
-            --lto=none \
             //common:kernel_aarch64_tests
 
       - name: Validate and stage pure GKI evidence

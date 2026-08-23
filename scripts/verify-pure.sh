@@ -40,7 +40,8 @@ for required in \
   CONFIG_ARM64_4K_PAGES=y \
   CONFIG_LTO_NONE=y \
   CONFIG_CFI_CLANG=y \
-  CONFIG_MODVERSIONS=y; do
+  CONFIG_MODVERSIONS=y \
+  CONFIG_FRAME_WARN=2048; do
   grep -qx "$required" "$ARTIFACT_DIR/kernel.config"
 done
 if grep -Eiq 'CONFIG_KSU|KernelSU|SUSFS' "$ARTIFACT_DIR/kernel.config"; then
