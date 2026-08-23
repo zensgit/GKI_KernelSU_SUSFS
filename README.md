@@ -1,7 +1,9 @@
-# Xuanyuan TW302 GKI + KernelSU Next + SUSFS
+# Xuanyuan TW302 GKI + KernelSU Next + SUSFS + stock module trust
 
 This branch builds a single, device-matched test kernel for Xiaomi `xuanyuan`
-running `OS3.0.302.0.WOATWXM`. It does not flash a phone and does not modify
+running `OS3.0.302.0.WOATWXM`. The stock Xiaomi GKI module-signing certificate
+is embedded so the vendor modules accepted by the original kernel remain
+loadable. It does not flash a phone and does not modify
 the repository default branch.
 
 ## Reproducibility pins

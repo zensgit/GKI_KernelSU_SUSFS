@@ -14,12 +14,23 @@ STOCK_IMAGE_SHA256=81181e8321e655acbce601faff94ab1610f9b825869a56a1c0e5bfcf9db11
 EXPECTED_RELEASE=6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k
 EXPECTED_KSU_VERSION=33214
 EXPECTED_KSU_TAG=v3.3.0
+KSU_DEFCONFIG_SHA256=5364f4b6a49522823078fac03bf9ecda3f944901185a4d2cf62560d7ca819658
+WORKSPACE_STATUS_SHA256=e81bc808f245f072c87b20cf2921b935cb015344d748d3a9f7c0c3f64e31ff44
+MODULE_SYMVERS_SHA256=116e4779d4038553f53f47f939c182c684009e0ae47bd5ccc8601c399ec1db90
+ABI_STG_SHA256=4037d8f85b9d2e2b238f6300bcedf685c64fd6bf23fe9e01b9d98848332570f1
+ABI_FULL_STG_SHA256=958bb4dc5d0334453b03d20ca8c7cbb382be938ef5051a9b7fa67225ecac9b61
+STOCK_CERT_PEM_SHA256=be4ec9f216f2c97735a78441be1f199b1fdaa38f568f20c97c9a2c3b5b8a7279
+STOCK_CERT_DER_SHA256=123c66f6dff49a034d0e586fcd4086563e5c3c79500951fd98f00a76402326ee
+STOCK_CERT_SERIAL=3B5068B306A89B3E9BCA19AED7F1537A01E9D83B
+STOCK_CERT_SKID=2A775BAAF639CF779955063F8D2415E2A529A15A
+STOCK_CERT="$KERNEL_ROOT/common/xuanyuan_stock_module_signing_cert.pem"
 
 test -s "$IMAGE"
 custom_sha=$(sha256sum "$IMAGE" | awk '{print $1}')
 test "$custom_sha" != "$STOCK_IMAGE_SHA256"
 strings "$IMAGE" | grep -F "Linux version $EXPECTED_RELEASE"
 strings "$IMAGE" | grep -Fx "$EXPECTED_KSU_TAG"
+strings "$IMAGE" | grep -Fx 'v2.2.0'
 if strings "$IMAGE" | grep -Fx 'v0.0.1' >/dev/null; then
   echo 'unexpected KernelSU fallback tag v0.0.1 in Image' >&2
   exit 1
@@ -40,6 +51,14 @@ for required in \
   CONFIG_LTO_NONE=y \
   CONFIG_CFI_CLANG=y \
   CONFIG_MODVERSIONS=y \
+  CONFIG_KPROBES=y \
+  CONFIG_EXT4_FS=y \
+  CONFIG_FRAME_WARN=2048 \
+  CONFIG_MODULE_SIG_PROTECT=y \
+  CONFIG_MODULE_SIG_ALL=y \
+  CONFIG_SYSTEM_TRUSTED_KEYRING=y \
+  'CONFIG_MODULE_SIG_KEY="certs/signing_key.pem"' \
+  'CONFIG_SYSTEM_TRUSTED_KEYS="xuanyuan_stock_module_signing_cert.pem"' \
   CONFIG_KSU=y \
   CONFIG_THREAD_INFO_IN_TASK=y \
   CONFIG_KSU_SUSFS=y \
@@ -54,9 +73,62 @@ for required in \
   CONFIG_KSU_SUSFS_SUS_MAP=y; do
   grep -qx "$required" "$ARTIFACT_DIR/kernel.config"
 done
+grep -qx '# CONFIG_MODULE_SIG_FORCE is not set' \
+  "$ARTIFACT_DIR/kernel.config"
+grep -qx '# CONFIG_SECONDARY_TRUSTED_KEYRING is not set' \
+  "$ARTIFACT_DIR/kernel.config"
 for disabled in KSU_DEBUG KSU_DISABLE_MANAGER KSU_DISABLE_POLICY; do
   grep -qx "# CONFIG_${disabled} is not set" "$ARTIFACT_DIR/kernel.config"
 done
+
+grep -qx 'FEATURE_SET=ksun_susfs_stock_trust' \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+grep -qx "KSU_DEFCONFIG_SHA256=$KSU_DEFCONFIG_SHA256" \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+echo "$KSU_DEFCONFIG_SHA256  $KERNEL_ROOT/common/xuanyuan_ksun_susfs_defconfig" \
+  | sha256sum -c -
+grep -qx "WORKSPACE_STATUS_SHA256=$WORKSPACE_STATUS_SHA256" \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+echo "$WORKSPACE_STATUS_SHA256  $KERNEL_ROOT/common/workspace_status.json" \
+  | sha256sum -c -
+grep -qx "STOCK_CERT_PEM_SHA256=$STOCK_CERT_PEM_SHA256" \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+grep -qx "STOCK_CERT_DER_SHA256=$STOCK_CERT_DER_SHA256" \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+grep -qx "STOCK_CERT_SERIAL=$STOCK_CERT_SERIAL" \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+grep -qx "STOCK_CERT_SKID=$STOCK_CERT_SKID" \
+  "$KERNEL_ROOT/xuanyuan-build-pins.txt"
+
+echo "$STOCK_CERT_PEM_SHA256  $STOCK_CERT" | sha256sum -c -
+test "$(openssl x509 -in "$STOCK_CERT" -outform DER | sha256sum | awk '{print $1}')" = \
+  "$STOCK_CERT_DER_SHA256"
+test "$(openssl x509 -in "$STOCK_CERT" -noout -serial | cut -d= -f2)" = \
+  "$STOCK_CERT_SERIAL"
+actual_skid=$(openssl x509 -in "$STOCK_CERT" -noout \
+  -ext subjectKeyIdentifier | sed -n '2p' | tr -d ' :')
+test "$actual_skid" = "$STOCK_CERT_SKID"
+stock_der=$(mktemp)
+openssl x509 -in "$STOCK_CERT" -outform DER -out "$stock_der"
+stock_cert_count=$(python3 -c \
+  'import pathlib, sys; print(pathlib.Path(sys.argv[1]).read_bytes().count(pathlib.Path(sys.argv[2]).read_bytes()))' \
+  "$IMAGE" "$stock_der")
+rm -f "$stock_der"
+test "$stock_cert_count" = 1
+
+grep -Eq ' [Tt] ksu_' "$DIST_DIR/System.map"
+grep -Eq ' T susfs_init$' "$DIST_DIR/System.map"
+grep -Eq ' T susfs_show_version$' "$DIST_DIR/System.map"
+
+echo "$MODULE_SYMVERS_SHA256  $DIST_DIR/kernel_aarch64_Module.symvers" \
+  | sha256sum -c -
+echo "$ABI_STG_SHA256  $DIST_DIR/abi.stg" | sha256sum -c -
+echo "$ABI_FULL_STG_SHA256  $DIST_DIR/abi-full.stg" | sha256sum -c -
+if grep -Eq '[[:space:]](ksu_|susfs_)' \
+  "$DIST_DIR/kernel_aarch64_Module.symvers"; then
+  echo 'unexpected KernelSU/SUSFS KMI export' >&2
+  exit 1
+fi
 
 install -m 0644 "$IMAGE" "$ARTIFACT_DIR/Image"
 for required_artifact in kernel_aarch64_Module.symvers System.map abi.stg abi-full.stg; do
@@ -66,9 +138,16 @@ for required_artifact in kernel_aarch64_Module.symvers System.map abi.stg abi-fu
 done
 install -m 0644 "$KERNEL_ROOT/xuanyuan-build-pins.txt" \
   "$ARTIFACT_DIR/xuanyuan-build-pins.txt"
-printf 'kernel_release=%s\nksu_version=%s\nksu_tag=%s\nimage_size=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
+install -m 0644 "$STOCK_CERT" \
+  "$ARTIFACT_DIR/stock-module-signing-cert.pem"
+printf 'stock_module_cert_embedded=true\nstock_cert_pem_sha256=%s\nstock_cert_der_sha256=%s\nstock_cert_serial=%s\nstock_cert_skid=%s\n' \
+  "$STOCK_CERT_PEM_SHA256" "$STOCK_CERT_DER_SHA256" \
+  "$STOCK_CERT_SERIAL" "$STOCK_CERT_SKID" \
+  > "$ARTIFACT_DIR/stock-module-cert.txt"
+printf 'feature_set=ksun_susfs_stock_trust\nkernel_release=%s\nksu_version=%s\nksu_tag=%s\nimage_size=%s\nstock_module_cert_embedded=true\nstock_cert_skid=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
   "$EXPECTED_RELEASE" "$EXPECTED_KSU_VERSION" "$EXPECTED_KSU_TAG" \
-  "$(stat -c %s "$IMAGE")" "$STOCK_IMAGE_SHA256" "$custom_sha" \
+  "$(stat -c %s "$IMAGE")" "$STOCK_CERT_SKID" \
+  "$STOCK_IMAGE_SHA256" "$custom_sha" \
   > "$ARTIFACT_DIR/build-metadata.txt"
 (
   cd "$ARTIFACT_DIR"
@@ -80,8 +159,11 @@ printf 'kernel_release=%s\nksu_version=%s\nksu_tag=%s\nimage_size=%s\nstock_imag
     abi.stg \
     abi-full.stg \
     xuanyuan-build-pins.txt \
+    stock-module-signing-cert.pem \
+    stock-module-cert.txt \
     build-metadata.txt \
     > SHA256SUMS
 )
 
 echo "Validated Image SHA-256: $custom_sha"
+echo "Stock module certificate embedded: true"

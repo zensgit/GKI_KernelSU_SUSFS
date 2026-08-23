@@ -23,9 +23,18 @@ FIX_SHA=757201d983e2549dc7945a21fa6a056eb2e55263
 KSU_COMBINED_SHA256=944509d27414c9c9c4e728fa17aad447fda4ccd9c50474ee7ce28b6cce5a1476
 KERNEL_COMBINED_SHA256=b21dd46c037ae5f68c8c0d4a36c73dfd4f686cb704190a49f6f579402625fc9c
 KSU_VERSION_PATCH_SHA256=30be6b8072122a946b22fbf13722a1dae276213127dfbe903783f1db15023d5b
+KSU_DEFCONFIG_SHA256=5364f4b6a49522823078fac03bf9ecda3f944901185a4d2cf62560d7ca819658
+WORKSPACE_STATUS_SHA256=e81bc808f245f072c87b20cf2921b935cb015344d748d3a9f7c0c3f64e31ff44
+STOCK_CERT_PEM_SHA256=be4ec9f216f2c97735a78441be1f199b1fdaa38f568f20c97c9a2c3b5b8a7279
+STOCK_CERT_DER_SHA256=123c66f6dff49a034d0e586fcd4086563e5c3c79500951fd98f00a76402326ee
+STOCK_CERT_SERIAL=3B5068B306A89B3E9BCA19AED7F1537A01E9D83B
+STOCK_CERT_SKID=2A775BAAF639CF779955063F8D2415E2A529A15A
 
 test "$(git -C "$COMMON_DIR" rev-parse HEAD)" = "$COMMON_SHA"
 test -z "$(git -C "$COMMON_DIR" status --porcelain)"
+test ! -e "$KSU_DIR"
+test ! -e "$SUSFS_DIR"
+test ! -e "$FIX_DIR"
 
 git clone --filter=blob:none https://github.com/KernelSU-Next/KernelSU-Next.git "$KSU_DIR"
 git -C "$KSU_DIR" checkout --detach "$KSU_SHA"
@@ -131,17 +140,35 @@ grep -qF 'obj-$(CONFIG_KSU) += kernelsu/' "$COMMON_DIR/drivers/Makefile" \
   || printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> "$COMMON_DIR/drivers/Makefile"
 grep -qF 'source "drivers/kernelsu/Kconfig"' "$COMMON_DIR/drivers/Kconfig" \
   || printf '\nsource "drivers/kernelsu/Kconfig"\n' >> "$COMMON_DIR/drivers/Kconfig"
-install -m 0644 "$RECIPE_ROOT/config/xuanyuan_ksun_susfs_defconfig" \
+ksu_defconfig="$RECIPE_ROOT/config/xuanyuan_ksun_susfs_defconfig"
+echo "$KSU_DEFCONFIG_SHA256  $ksu_defconfig" | sha256sum -c -
+install -m 0644 "$ksu_defconfig" \
   "$COMMON_DIR/xuanyuan_ksun_susfs_defconfig"
-install -m 0644 "$RECIPE_ROOT/config/workspace_status.json" \
+stock_cert="$RECIPE_ROOT/config/xuanyuan_stock_module_signing_cert.pem"
+echo "$STOCK_CERT_PEM_SHA256  $stock_cert" | sha256sum -c -
+test "$(openssl x509 -in "$stock_cert" -outform DER | sha256sum | awk '{print $1}')" = \
+  "$STOCK_CERT_DER_SHA256"
+test "$(openssl x509 -in "$stock_cert" -noout -serial | cut -d= -f2)" = \
+  "$STOCK_CERT_SERIAL"
+actual_skid=$(openssl x509 -in "$stock_cert" -noout \
+  -ext subjectKeyIdentifier | sed -n '2p' | tr -d ' :')
+test "$actual_skid" = "$STOCK_CERT_SKID"
+install -m 0644 "$stock_cert" \
+  "$COMMON_DIR/xuanyuan_stock_module_signing_cert.pem"
+workspace_status="$RECIPE_ROOT/config/workspace_status.json"
+echo "$WORKSPACE_STATUS_SHA256  $workspace_status" | sha256sum -c -
+install -m 0644 "$workspace_status" \
   "$COMMON_DIR/workspace_status.json"
 grep -qF '"xuanyuan_ksun_susfs_defconfig"' "$COMMON_DIR/BUILD.bazel" \
   || printf '\nexports_files(["xuanyuan_ksun_susfs_defconfig"])\n' >> "$COMMON_DIR/BUILD.bazel"
 
 test -f "$COMMON_DIR/android/abi_gki_protected_exports_aarch64"
+test "$(readlink "$COMMON_DIR/drivers/kernelsu")" = ../../KernelSU-Next/kernel
 grep -q 'protected_exports_list' "$COMMON_DIR/BUILD.bazel"
 grep -q '^CONFIG_MODVERSIONS=y$' "$COMMON_DIR/arch/arm64/configs/gki_defconfig"
 grep -q '^CONFIG_LOCALVERSION="-4k"$' "$COMMON_DIR/arch/arm64/configs/gki_defconfig"
+grep -q '^CONFIG_KPROBES=y$' "$COMMON_DIR/arch/arm64/configs/gki_defconfig"
+grep -q '^CONFIG_EXT4_FS=y$' "$COMMON_DIR/arch/arm64/configs/gki_defconfig"
 grep -q '^KMI_GENERATION=8$' "$COMMON_DIR/build.config.common"
 grep -q '^BRANCH=android15-6.6$' "$COMMON_DIR/build.config.common"
 
@@ -153,8 +180,50 @@ GIT_COMMITTER_DATE='1779954526 +0000' \
   git -C "$COMMON_DIR" commit -m 'xuanyuan: add KernelSU Next 3.3.0 and SUSFS 2.2.0'
 test -z "$(git -C "$COMMON_DIR" status --porcelain)"
 
-printf 'COMMON_BASE=%s\nKSU=%s\nKSU_REV_COUNT=%s\nKSU_VERSION=%s\nKSU_TAG=%s\nSUSFS=%s\nFIXES=%s\nKSU_COMBINED_SHA256=%s\nKSU_VERSION_PATCH_SHA256=%s\nKERNEL_COMBINED_SHA256=%s\n' \
+expected_common_changes=$(printf '%s\n' \
+  BUILD.bazel \
+  drivers/Kconfig \
+  drivers/Makefile \
+  drivers/input/input.c \
+  drivers/kernelsu \
+  fs/Makefile \
+  fs/exec.c \
+  fs/namei.c \
+  fs/namespace.c \
+  fs/notify/fdinfo.c \
+  fs/open.c \
+  fs/proc/base.c \
+  fs/proc/bootconfig.c \
+  fs/proc/fd.c \
+  fs/proc/task_mmu.c \
+  fs/proc_namespace.c \
+  fs/read_write.c \
+  fs/readdir.c \
+  fs/stat.c \
+  fs/statfs.c \
+  fs/susfs.c \
+  include/linux/susfs.h \
+  include/linux/susfs_def.h \
+  kernel/kallsyms.c \
+  kernel/reboot.c \
+  kernel/sys.c \
+  mm/memory.c \
+  security/selinux/avc.c \
+  security/selinux/hooks.c \
+  security/selinux/selinuxfs.c \
+  security/selinux/ss/services.c \
+  workspace_status.json \
+  xuanyuan_ksun_susfs_defconfig \
+  xuanyuan_stock_module_signing_cert.pem)
+actual_common_changes=$(git -C "$COMMON_DIR" diff-tree \
+  --no-commit-id --name-only -r HEAD | LC_ALL=C sort)
+test "$actual_common_changes" = "$expected_common_changes"
+
+printf 'FEATURE_SET=ksun_susfs_stock_trust\nCOMMON_BASE=%s\nKSU=%s\nKSU_REV_COUNT=%s\nKSU_VERSION=%s\nKSU_TAG=%s\nSUSFS=%s\nFIXES=%s\nKSU_COMBINED_SHA256=%s\nKSU_VERSION_PATCH_SHA256=%s\nKERNEL_COMBINED_SHA256=%s\nKSU_DEFCONFIG_SHA256=%s\nWORKSPACE_STATUS_SHA256=%s\nSTOCK_CERT_PEM_SHA256=%s\nSTOCK_CERT_DER_SHA256=%s\nSTOCK_CERT_SERIAL=%s\nSTOCK_CERT_SKID=%s\n' \
   "$COMMON_SHA" "$KSU_SHA" "$KSU_REV_COUNT" "$KSU_VERSION" "$KSU_TAG" \
   "$SUSFS_SHA" "$FIX_SHA" "$KSU_COMBINED_SHA256" \
   "$KSU_VERSION_PATCH_SHA256" "$KERNEL_COMBINED_SHA256" \
+  "$KSU_DEFCONFIG_SHA256" "$WORKSPACE_STATUS_SHA256" \
+  "$STOCK_CERT_PEM_SHA256" "$STOCK_CERT_DER_SHA256" \
+  "$STOCK_CERT_SERIAL" "$STOCK_CERT_SKID" \
   > "$KERNEL_ROOT/xuanyuan-build-pins.txt"

@@ -1,15 +1,15 @@
-name: Xuanyuan TW302 pinned GKI SUSFS
+name: Xuanyuan TW302 pinned GKI SUSFS stock trust
 
 on:
   push:
     branches:
-      - codex/xuanyuan-tw302-gki-susfs
+      - codex/xuanyuan-tw302-gki-susfs-stock-trust
 
 permissions:
   contents: read
 
 concurrency:
-  group: xuanyuan-tw302-gki-susfs
+  group: xuanyuan-tw302-gki-susfs-stock-trust
   cancel-in-progress: false
 
 jobs:
@@ -107,7 +107,6 @@ jobs:
             --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
             --extra_git_project=KernelSU-Next \
             --config=stamp \
-            --lto=none \
             --defconfig_fragment=//common:xuanyuan_ksun_susfs_defconfig \
             //common:kernel_aarch64_abi_dist \
             -- \
@@ -141,7 +140,6 @@ jobs:
             --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
             --extra_git_project=KernelSU-Next \
             --config=stamp \
-            --lto=none \
             --defconfig_fragment=//common:xuanyuan_ksun_susfs_defconfig \
             //common:kernel_aarch64_tests
 
@@ -178,6 +176,8 @@ jobs:
               abi.stg \
               abi-full.stg \
               xuanyuan-build-pins.txt \
+              stock-module-signing-cert.pem \
+              stock-module-cert.txt \
               build-metadata.txt \
               susfs4ksu-v2.2.0.zip \
               kernel-build.log \
@@ -193,13 +193,14 @@ jobs:
             echo "- Kernel release: 6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k"
             echo "- KernelSU Next: v3.3.0 / 33214"
             echo "- SUSFS: v2.2.0"
+            echo "- Stock GKI module trust: embedded"
             echo "- Image SHA-256: $custom_sha"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload validated artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: xuanyuan-tw302-gki-ksun33214-susfs-v2.2.0
+          name: xuanyuan-tw302-gki-ksun33214-susfs-v2.2.0-stock-trust
           path: artifacts/
           if-no-files-found: error
           retention-days: 7
