@@ -1,0 +1,194 @@
+name: Xuanyuan TW302 pinned GKI KSUN only
+
+on:
+  push:
+    branches:
+      - codex/xuanyuan-tw302-gki-ksun-only
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xuanyuan-tw302-gki-ksun-only
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout pinned recipe
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Free runner disk and create swap
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo swapoff -a || true
+          sudo rm -f /mnt/swapfile
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /usr/local/share/powershell \
+            /usr/share/swift
+          docker system prune --all --force --volumes || true
+          sudo apt-get clean
+          sudo fallocate -l 12G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          df -h /
+          free -h
+
+      - name: Install pinned repo launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/repo-bin"
+          curl --fail --location --retry 5 \
+            https://storage.googleapis.com/git-repo-downloads/repo-2.65 \
+            --output "$RUNNER_TEMP/repo-bin/repo"
+          echo "1211b57b57e4122a9c546295a59b37d24068f1164d0e87bef096d5323c413e4f  $RUNNER_TEMP/repo-bin/repo" \
+            | sha256sum -c -
+          chmod 0755 "$RUNNER_TEMP/repo-bin/repo"
+          echo "$RUNNER_TEMP/repo-bin" >> "$GITHUB_PATH"
+
+      - name: Sync exact AOSP GKI build 15511674 sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "dbaa1ca849500f4e0cc421beb8b431eb957905379a1a1f9d6b0bfd7d6b5fb1c3  pins/manifest_15511674.xml" \
+            | sha256sum -c -
+          mkdir -p kernel
+          cd kernel
+          repo init \
+            -u https://android.googlesource.com/kernel/manifest \
+            -b af46bb5ca8cdc8796f94a0734ec2fbbc085fc448 \
+            --depth=1 \
+            --repo-rev=v2.65
+          install -m 0644 "$GITHUB_WORKSPACE/pins/manifest_15511674.xml" \
+            .repo/manifests/manifest_15511674.xml
+          repo init -m manifest_15511674.xml --depth=1 --repo-rev=v2.65
+          repo sync \
+            -j4 \
+            --fail-fast \
+            --force-sync \
+            --no-clone-bundle \
+            --no-tags
+          install -m 0644 "$GITHUB_WORKSPACE/pins/manifest_15511674.xml" \
+            manifest_15511674.xml
+          test "$(git -C .repo/manifests rev-parse HEAD)" = af46bb5ca8cdc8796f94a0734ec2fbbc085fc448
+          test "$(git -C common rev-parse HEAD)" = e56cf6b09cca2151bcee244b3d334fb68685ff57
+          test "$(git -C build/kernel rev-parse HEAD)" = 6524d522479e9c95ee529a8d117e6c8e79a6608d
+          test "$(git -C prebuilts/clang/host/linux-x86 rev-parse HEAD)" = 62dc563017359bca29c4a08f5f27d8ecae763462
+          prebuilts/clang/host/linux-x86/clang-r510928/bin/clang --version
+          df -h /
+
+      - name: Integrate pinned KernelSU Next built-in only
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/integrate-ksun-only.sh \
+            "$GITHUB_WORKSPACE/kernel" \
+            "$GITHUB_WORKSPACE"
+
+      - name: Build GKI and enforce AOSP ABI gate
+        shell: bash
+        working-directory: kernel
+        env:
+          BUILD_NUMBER: "15511674"
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/out/custom-dist"
+          tools/bazel run \
+            --jobs="$(nproc)" \
+            --make_jobs="$(nproc)" \
+            --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
+            --extra_git_project=KernelSU-Next \
+            --config=stamp \
+            --lto=none \
+            --defconfig_fragment=//common:xuanyuan_ksun_only_defconfig \
+            //common:kernel_aarch64_abi_dist \
+            -- \
+            --dist_dir="$GITHUB_WORKSPACE/out/custom-dist" \
+            --flat \
+            2>&1 | tee "$GITHUB_WORKSPACE/kernel-build.log"
+          grep -Fqx -- '-- KernelSU-Next version: 33214' \
+            "$GITHUB_WORKSPACE/kernel-build.log"
+          grep -Fqx -- '-- KernelSU-Next tag: v3.3.0' \
+            "$GITHUB_WORKSPACE/kernel-build.log"
+          if grep -Fq -- 'KernelSU-Next version fallback:' \
+            "$GITHUB_WORKSPACE/kernel-build.log"; then
+            echo 'unexpected KernelSU version fallback in build log' >&2
+            exit 1
+          fi
+          if grep -Fq -- 'KernelSU-Next tag fallback:' \
+            "$GITHUB_WORKSPACE/kernel-build.log"; then
+            echo 'unexpected KernelSU tag fallback in build log' >&2
+            exit 1
+          fi
+
+      - name: Run AOSP kernel tests
+        shell: bash
+        working-directory: kernel
+        env:
+          BUILD_NUMBER: "15511674"
+        run: |
+          set -euo pipefail
+          tools/bazel test \
+            --jobs="$(nproc)" \
+            --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
+            --extra_git_project=KernelSU-Next \
+            --config=stamp \
+            --lto=none \
+            --defconfig_fragment=//common:xuanyuan_ksun_only_defconfig \
+            //common:kernel_aarch64_tests
+
+      - name: Validate and stage artifacts
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/verify-ksun-only.sh \
+            "$GITHUB_WORKSPACE/kernel" \
+            "$GITHUB_WORKSPACE/out/custom-dist" \
+            "$GITHUB_WORKSPACE/artifacts"
+          install -m 0644 kernel-build.log artifacts/kernel-build.log
+          (
+            cd artifacts
+            sha256sum \
+              Image \
+              kernel.config \
+              kernel_aarch64_Module.symvers \
+              System.map \
+              abi.stg \
+              abi-full.stg \
+              xuanyuan-build-pins.txt \
+              build-metadata.txt \
+              kernel-build.log \
+              > SHA256SUMS
+          )
+          custom_sha=$(sha256sum artifacts/Image | awk '{print $1}')
+          echo "image_sha256=$custom_sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Xuanyuan TW302 GKI + KernelSU Next built-in only"
+            echo
+            echo "- ABI gate: PASS"
+            echo "- AOSP kernel tests: PASS"
+            echo "- Kernel release: 6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k"
+            echo "- KernelSU Next: v3.3.0 / 33214 / built-in"
+            echo "- SUSFS: absent"
+            echo "- Image SHA-256: $custom_sha"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validated artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: xuanyuan-tw302-gki-ksun33214-built-in-only
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
