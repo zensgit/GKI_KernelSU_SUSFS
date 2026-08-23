@@ -1,15 +1,15 @@
-name: Xuanyuan TW302 pinned pure GKI
+name: Xuanyuan TW302 pure GKI with stock module trust
 
 on:
   push:
     branches:
-      - codex/xuanyuan-tw302-gki-pure
+      - codex/xuanyuan-tw302-gki-stock-trust
 
 permissions:
   contents: read
 
 concurrency:
-  group: xuanyuan-tw302-gki-pure
+  group: xuanyuan-tw302-gki-stock-trust
   cancel-in-progress: false
 
 jobs:
@@ -87,7 +87,7 @@ jobs:
           prebuilts/clang/host/linux-x86/clang-r510928/bin/clang --version
           df -h /
 
-      - name: Integrate pure GKI workspace status only
+      - name: Integrate pure GKI with stock module trust
         shell: bash
         run: |
           set -euo pipefail
@@ -108,6 +108,7 @@ jobs:
             --make_jobs="$(nproc)" \
             --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
             --config=stamp \
+            --defconfig_fragment=//common:xuanyuan_stock_trust_defconfig \
             //common:kernel_aarch64_abi_dist \
             -- \
             --dist_dir="$GITHUB_WORKSPACE/out/pure-dist" \
@@ -125,6 +126,7 @@ jobs:
             --jobs="$(nproc)" \
             --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
             --config=stamp \
+            --defconfig_fragment=//common:xuanyuan_stock_trust_defconfig \
             //common:kernel_aarch64_tests
 
       - name: Validate and stage pure GKI evidence
@@ -147,6 +149,8 @@ jobs:
               abi.stg \
               abi-full.stg \
               xuanyuan-build-pins.txt \
+              stock-module-signing-cert.pem \
+              stock-module-cert.txt \
               stock-image-comparison.txt \
               build-metadata.txt \
               kernel-build.log \
@@ -155,33 +159,36 @@ jobs:
           custom_sha=$(sha256sum artifacts/Image | awk '{print $1}')
           stock_match=$(sed -n 's/^stock_image_match=//p' \
             artifacts/stock-image-comparison.txt)
+          stock_cert_embedded=$(sed -n 's/^stock_module_cert_embedded=//p' \
+            artifacts/stock-module-cert.txt)
           echo "image_sha256=$custom_sha" >> "$GITHUB_OUTPUT"
           echo "stock_image_match=$stock_match" >> "$GITHUB_OUTPUT"
           {
-            echo "## Xuanyuan TW302 pure GKI baseline"
+            echo "## Xuanyuan TW302 pure GKI with stock module trust"
             echo
             echo "- ABI gate: PASS"
             echo "- AOSP kernel tests: PASS"
             echo "- Kernel release: 6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k"
             echo "- KernelSU: absent"
             echo "- SUSFS: absent"
+            echo "- Stock module certificate embedded: $stock_cert_embedded"
             echo "- Stock Image byte identity: $stock_match"
             echo "- Image SHA-256: $custom_sha"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload pure GKI artifacts and mismatch evidence
+      - name: Upload stock-trust GKI artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: xuanyuan-tw302-pure-gki-baseline
+          name: xuanyuan-tw302-pure-gki-stock-trust
           path: artifacts/
           if-no-files-found: error
           retention-days: 7
           compression-level: 6
 
-      - name: Enforce stock Image byte identity
+      - name: Enforce stock module certificate embedding
         shell: bash
         run: |
           set -euo pipefail
-          grep -qx 'stock_image_match=true' \
-            artifacts/stock-image-comparison.txt
+          grep -qx 'stock_module_cert_embedded=true' \
+            artifacts/stock-module-cert.txt
