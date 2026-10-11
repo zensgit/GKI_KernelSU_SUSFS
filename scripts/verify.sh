@@ -12,8 +12,9 @@ ARTIFACT_DIR=$3
 IMAGE="$DIST_DIR/Image"
 STOCK_IMAGE_SHA256=81181e8321e655acbce601faff94ab1610f9b825869a56a1c0e5bfcf9db1126c
 EXPECTED_RELEASE=6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k
-EXPECTED_KSU_VERSION=33214
-EXPECTED_KSU_TAG=v3.3.0
+EXPECTED_KSU_VERSION=33333
+EXPECTED_KSU_TAG=v3.4.1
+EXPECTED_KSU_UAPI=5
 KSU_DEFCONFIG_SHA256=5364f4b6a49522823078fac03bf9ecda3f944901185a4d2cf62560d7ca819658
 WORKSPACE_STATUS_SHA256=e81bc808f245f072c87b20cf2921b935cb015344d748d3a9f7c0c3f64e31ff44
 MODULE_SYMVERS_SHA256=116e4779d4038553f53f47f939c182c684009e0ae47bd5ccc8601c399ec1db90
@@ -35,12 +36,14 @@ if strings "$IMAGE" | grep -Fx 'v0.0.1' >/dev/null; then
   echo 'unexpected KernelSU fallback tag v0.0.1 in Image' >&2
   exit 1
 fi
-grep -qx 'KSU_GIT_VERSION := 3214' \
+grep -qx 'KSU_GIT_VERSION := 3333' \
   "$KERNEL_ROOT/KernelSU-Next/kernel/Kbuild"
 grep -qx "KSU_GIT_TAG := $EXPECTED_KSU_TAG" \
   "$KERNEL_ROOT/KernelSU-Next/kernel/Kbuild"
 test "$(grep -xc 'KSU_GIT_VERSION_VALID := 1' \
   "$KERNEL_ROOT/KernelSU-Next/kernel/Kbuild")" = 2
+grep -Fqx "static const __u32 KERNEL_SU_UAPI_VERSION = $EXPECTED_KSU_UAPI;" \
+  "$KERNEL_ROOT/KernelSU-Next/uapi/supercall.h"
 
 mkdir -p "$ARTIFACT_DIR"
 "$KERNEL_ROOT/common/scripts/extract-ikconfig" "$IMAGE" \
@@ -117,6 +120,8 @@ rm -f "$stock_der"
 test "$stock_cert_count" = 1
 
 grep -Eq ' [Tt] ksu_' "$DIST_DIR/System.map"
+grep -Eq ' T ksu_handle_post_execveat_sucompat$' "$DIST_DIR/System.map"
+grep -Eq ' T ksu_app_profile_init$' "$DIST_DIR/System.map"
 grep -Eq ' T susfs_init$' "$DIST_DIR/System.map"
 grep -Eq ' T susfs_show_version$' "$DIST_DIR/System.map"
 
@@ -144,8 +149,9 @@ printf 'stock_module_cert_embedded=true\nstock_cert_pem_sha256=%s\nstock_cert_de
   "$STOCK_CERT_PEM_SHA256" "$STOCK_CERT_DER_SHA256" \
   "$STOCK_CERT_SERIAL" "$STOCK_CERT_SKID" \
   > "$ARTIFACT_DIR/stock-module-cert.txt"
-printf 'feature_set=ksun_susfs_stock_trust\nkernel_release=%s\nksu_version=%s\nksu_tag=%s\nimage_size=%s\nstock_module_cert_embedded=true\nstock_cert_skid=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
+printf 'feature_set=ksun_susfs_stock_trust\nkernel_release=%s\nksu_version=%s\nksu_tag=%s\nksu_uapi=%s\nimage_size=%s\nstock_module_cert_embedded=true\nstock_cert_skid=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
   "$EXPECTED_RELEASE" "$EXPECTED_KSU_VERSION" "$EXPECTED_KSU_TAG" \
+  "$EXPECTED_KSU_UAPI" \
   "$(stat -c %s "$IMAGE")" "$STOCK_CERT_SKID" \
   "$STOCK_IMAGE_SHA256" "$custom_sha" \
   > "$ARTIFACT_DIR/build-metadata.txt"

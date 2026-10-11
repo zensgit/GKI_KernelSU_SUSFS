@@ -1,13 +1,13 @@
-diff --git a/kernel/Kbuild b/kernel/Kbuild
 --- a/kernel/Kbuild
 +++ b/kernel/Kbuild
-@@ -70,3 +70,11 @@
-+# Kleaf's sandbox resolves drivers/kernelsu inside the common kernel repo and
-+# does not expose the separate KernelSU-Next .git metadata. These values are
-+# pinned to commit 3b18216f71df189ab3d1b1ce0bdb21be1268e771 after verifying its
-+# full-history revision count and exact release tag in the integration script.
-+KSU_GIT_VERSION := 3214
-+KSU_GIT_TAG := v3.3.0
+@@ -82,6 +82,12 @@
+ LPATH := /usr/bin/env PATH="$$PATH":/usr/bin:/usr/local/bin
+ MDIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+ 
++# Kleaf resolves drivers/kernelsu inside common and does not expose KSU Git metadata.
++# Exact official v3.4.1 commit and full-history count are verified by integrate.sh.
++KSU_GIT_VERSION := 3333
++KSU_GIT_TAG := v3.4.1
 +KSU_GIT_VERSION_VALID := 1
 +
  # Check if this is a git repository

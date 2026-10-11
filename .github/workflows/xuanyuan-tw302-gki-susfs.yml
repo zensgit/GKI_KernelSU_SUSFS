@@ -1,15 +1,15 @@
-name: Xuanyuan TW302 pinned GKI SUSFS stock trust
+name: Xuanyuan EEA304 KernelSU Next 3.4.1 SUSFS stock trust
 
 on:
   push:
     branches:
-      - codex/xuanyuan-tw302-gki-susfs-stock-trust
+      - codex/xuanyuan-eea304-ksun341-susfs
 
 permissions:
   contents: read
 
 concurrency:
-  group: xuanyuan-tw302-gki-susfs-stock-trust
+  group: xuanyuan-eea304-ksun341-susfs
   cancel-in-progress: false
 
 jobs:
@@ -113,9 +113,9 @@ jobs:
             --dist_dir="$GITHUB_WORKSPACE/out/custom-dist" \
             --flat \
             2>&1 | tee "$GITHUB_WORKSPACE/kernel-build.log"
-          grep -Fqx -- '-- KernelSU-Next version: 33214' \
+          grep -Fqx -- '-- KernelSU-Next version: 33333' \
             "$GITHUB_WORKSPACE/kernel-build.log"
-          grep -Fqx -- '-- KernelSU-Next tag: v3.3.0' \
+          grep -Fqx -- '-- KernelSU-Next tag: v3.4.1' \
             "$GITHUB_WORKSPACE/kernel-build.log"
           if grep -Fq -- 'KernelSU-Next version fallback:' \
             "$GITHUB_WORKSPACE/kernel-build.log"; then
@@ -186,12 +186,12 @@ jobs:
           custom_sha=$(sha256sum artifacts/Image | awk '{print $1}')
           echo "image_sha256=$custom_sha" >> "$GITHUB_OUTPUT"
           {
-            echo "## Xuanyuan TW302 GKI + KernelSU Next + SUSFS"
+            echo "## Xuanyuan EEA304 GKI + KernelSU Next + SUSFS"
             echo
             echo "- ABI gate: PASS"
             echo "- AOSP kernel tests: PASS"
             echo "- Kernel release: 6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k"
-            echo "- KernelSU Next: v3.3.0 / 33214"
+            echo "- KernelSU Next: v3.4.1 / 33333"
             echo "- SUSFS: v2.2.0"
             echo "- Stock GKI module trust: embedded"
             echo "- Image SHA-256: $custom_sha"
@@ -200,7 +200,7 @@ jobs:
       - name: Upload validated artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: xuanyuan-tw302-gki-ksun33214-susfs-v2.2.0-stock-trust
+          name: xuanyuan-eea304-gki-ksun33333-susfs-v2.2.0-stock-trust
           path: artifacts/
           if-no-files-found: error
           retention-days: 7
