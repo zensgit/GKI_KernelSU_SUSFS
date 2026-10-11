@@ -11,7 +11,7 @@ It does not build a generic KernelSU LKM.
 - SUSFS 2.3.0: `a0f9c59e2243f8a5db955f4ad1686d5e0ad26e1a`, branch
   `gki-android15-6.6`.
 - `ksun341-susfs230.patch` SHA256:
-  `268cc412302504a4ad608bee9426473dfaade3047a3befb2b0438fe516d62f3a`.
+  `54650f7cca6a897b5b8a83bda6c4bdc6ea279a2779a58be0be17346ec0ff0927`.
 - Generated common patch SHA256:
   `094fffbe1eb8201d6ce1ce54807226ed045096946b1037893fb9482eccdc9d37`.
 - Matching upstream ARM64 helper SHA256:
@@ -73,3 +73,10 @@ upstream whitespace warnings remain: six in `fs/susfs.c`, one in `mm/memory.c`.
 Compilation, strict ABI validation, temporary boot, and live root/SUSFS checks
 remain separate gates. These source checks do not establish application hiding
 or support for every custom root profile.
+
+The first 2.3 CI compile exposed two function-address checks after SUSFS changed
+nullable pointers to direct functions. SUSFS now calls those wrappers directly;
+non-SUSFS retains nullable-pointer checks and the compute fallback. Extracted
+call-site checks reproduce both original Clang errors, then compile and execute
+assertions for both corrected branches with warnings treated as errors. This
+does not qualify the wider manual-hook recipe for non-SUSFS builds.
