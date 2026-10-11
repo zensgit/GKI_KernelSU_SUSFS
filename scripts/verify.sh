@@ -31,7 +31,7 @@ custom_sha=$(sha256sum "$IMAGE" | awk '{print $1}')
 test "$custom_sha" != "$STOCK_IMAGE_SHA256"
 strings "$IMAGE" | grep -F "Linux version $EXPECTED_RELEASE"
 strings "$IMAGE" | grep -Fx "$EXPECTED_KSU_TAG"
-strings "$IMAGE" | grep -Fx 'v2.2.0'
+strings "$IMAGE" | grep -Fx 'v2.3.0'
 if strings "$IMAGE" | grep -Fx 'v0.0.1' >/dev/null; then
   echo 'unexpected KernelSU fallback tag v0.0.1 in Image' >&2
   exit 1
@@ -149,7 +149,7 @@ printf 'stock_module_cert_embedded=true\nstock_cert_pem_sha256=%s\nstock_cert_de
   "$STOCK_CERT_PEM_SHA256" "$STOCK_CERT_DER_SHA256" \
   "$STOCK_CERT_SERIAL" "$STOCK_CERT_SKID" \
   > "$ARTIFACT_DIR/stock-module-cert.txt"
-printf 'feature_set=ksun_susfs_stock_trust\nkernel_release=%s\nksu_version=%s\nksu_tag=%s\nksu_uapi=%s\nimage_size=%s\nstock_module_cert_embedded=true\nstock_cert_skid=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
+printf 'feature_set=ksun_susfs_stock_trust\nkernel_release=%s\nksu_version=%s\nksu_tag=%s\nksu_uapi=%s\nsusfs_version=v2.3.0\nimage_size=%s\nstock_module_cert_embedded=true\nstock_cert_skid=%s\nstock_image_sha256=%s\ncustom_image_sha256=%s\n' \
   "$EXPECTED_RELEASE" "$EXPECTED_KSU_VERSION" "$EXPECTED_KSU_TAG" \
   "$EXPECTED_KSU_UAPI" \
   "$(stat -c %s "$IMAGE")" "$STOCK_CERT_SKID" \

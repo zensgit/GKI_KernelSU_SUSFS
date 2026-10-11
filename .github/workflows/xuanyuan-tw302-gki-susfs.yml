@@ -1,15 +1,15 @@
-name: Xuanyuan EEA304 KernelSU Next 3.4.1 SUSFS stock trust
+name: Xuanyuan EEA304 KernelSU Next 3.4.1 SUSFS 2.3 stock trust
 
 on:
   push:
     branches:
-      - codex/xuanyuan-eea304-ksun341-susfs
+      - codex/xuanyuan-eea304-ksun341-susfs230
 
 permissions:
   contents: read
 
 concurrency:
-  group: xuanyuan-eea304-ksun341-susfs
+  group: xuanyuan-eea304-ksun341-susfs230
   cancel-in-progress: false
 
 jobs:
@@ -148,7 +148,7 @@ jobs:
         working-directory: kernel/susfs4ksu
         run: |
           set -euo pipefail
-          echo "f8e36b78a085d4f14735033da55ecf367424bd3e9eb4032735f01b0bd1fa9db4  ksu_module_susfs/tools/ksu_susfs_arm64" \
+          echo "eb727d479a0ff2d5557369c49a3e7492b5236a7c37499d235260e4ed4d24976d  ksu_module_susfs/tools/ksu_susfs_arm64" \
             | sha256sum -c -
           find ksu_module_susfs -exec touch -d '@1779954526' {} +
           bash build_ksu_module.sh
@@ -164,7 +164,7 @@ jobs:
             "$GITHUB_WORKSPACE/out/custom-dist" \
             "$GITHUB_WORKSPACE/artifacts"
           install -m 0644 kernel/susfs4ksu/ksu_module_susfs.zip \
-            artifacts/susfs4ksu-v2.2.0.zip
+            artifacts/susfs4ksu-v2.3.0.zip
           install -m 0644 kernel-build.log artifacts/kernel-build.log
           (
             cd artifacts
@@ -179,7 +179,7 @@ jobs:
               stock-module-signing-cert.pem \
               stock-module-cert.txt \
               build-metadata.txt \
-              susfs4ksu-v2.2.0.zip \
+              susfs4ksu-v2.3.0.zip \
               kernel-build.log \
               > SHA256SUMS
           )
@@ -192,7 +192,7 @@ jobs:
             echo "- AOSP kernel tests: PASS"
             echo "- Kernel release: 6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k"
             echo "- KernelSU Next: v3.4.1 / 33333"
-            echo "- SUSFS: v2.2.0"
+            echo "- SUSFS: v2.3.0"
             echo "- Stock GKI module trust: embedded"
             echo "- Image SHA-256: $custom_sha"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -200,7 +200,7 @@ jobs:
       - name: Upload validated artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: xuanyuan-eea304-gki-ksun33333-susfs-v2.2.0-stock-trust
+          name: xuanyuan-eea304-gki-ksun33333-susfs-v2.3.0-stock-trust
           path: artifacts/
           if-no-files-found: error
           retention-days: 7

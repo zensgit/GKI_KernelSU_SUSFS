@@ -1,66 +1,75 @@
-# KernelSU Next 3.4.1 / SUSFS 2.2.0 integration
+# KernelSU Next 3.4.1 / SUSFS 2.3.0 integration
 
 This recipe targets built-in KernelSU on the existing xuanyuan ARM64 GKI base.
 It does not build a generic KernelSU LKM.
 
-## Sources
+## Exact sources and checksums
 
 - Android common: `e56cf6b09cca2151bcee244b3d334fb68685ff57` (unchanged).
 - Official KernelSU Next v3.4.1: `8f902aeb16033024143ae36cf711df902cf02fae`;
   full-history revision count 3333, kernel version 33333, UAPI 5.
-- SUSFS 2.2.0: `e7b28525f69ca5864bed7db51f77663f5adfe218` (unchanged).
-- Legacy WildKernels compatibility reference:
-  `757201d983e2549dc7945a21fa6a056eb2e55263`. Its generated v3.3.0 KSU patch
-  reproduces SHA256 `944509d27414c9c9c4e728fa17aad447fda4ccd9c50474ee7ce28b6cce5a1476`.
-- The post-exec scoped-session mechanism and separate kernel-filename SULog
-  adapters follow the maintained integration in
-  [pershoot c4653cc4](https://github.com/pershoot/KernelSU-Next/commit/c4653cc4ca61a2160ad819d615ea42811e295192).
-  The complete fork, SUSFS 2.3, additional manager signatures, feature-forcing,
-  and later unrelated changes are not imported.
+- SUSFS 2.3.0: `a0f9c59e2243f8a5db955f4ad1686d5e0ad26e1a`, branch
+  `gki-android15-6.6`.
+- `ksun341-susfs230.patch` SHA256:
+  `268cc412302504a4ad608bee9426473dfaade3047a3befb2b0438fe516d62f3a`.
+- Generated common patch SHA256:
+  `094fffbe1eb8201d6ce1ce54807226ed045096946b1037893fb9482eccdc9d37`.
+- Matching upstream ARM64 helper SHA256:
+  `eb727d479a0ff2d5557369c49a3e7492b5236a7c37499d235260e4ed4d24976d`.
+- `ksun-version-pin.patch` SHA256:
+  `7f451103f9f86e933cc46f358c9eff160e06211565f98b7d81d1916d2b970cc2`.
+
+The manual-hook lineage includes the reviewed 2.2 port and WildKernels
+`757201d983e2549dc7945a21fa6a056eb2e55263`. The scoped post-exec session
+mechanism and kernel-filename SULog adapters follow
+[pershoot c4653cc4](https://github.com/pershoot/KernelSU-Next/commit/c4653cc4ca61a2160ad819d615ea42811e295192).
+The complete fork, additional signatures, and later unrelated features are
+not imported.
 
 ## Port boundaries
 
-`ksun341-susfs220.patch` applies directly to the exact official 3.4.1 source.
-It retains the established SUSFS 2.2 manual hooks rather than enabling a second
-native syscall hook path. It preserves UAPI 5, services events, scoped driver
-FD private data and ioctl permission checks, and the 3.4.1 seccomp backport
-probe. The ARM64 instruction helper and symbol resolver are built because the
-new seccomp probe uses them.
+The patch applies directly to official 3.4.1. It uses SUSFS manual hooks without
+also enabling the native syscall dispatcher. It preserves UAPI 5, services
+events, scoped FD private data and ioctl permissions, `ksu_app_profile_init`,
+and the 3.4.1 seccomp backport probe with its ARM64 symbol/instruction helpers.
 
-Only a successful allowlist check and root-profile application returns zero
-from the manual su pre-hook. Ordinary exec, init-only handling, denied su,
-and profile failures cannot qualify as a new su session. Two profile failure
-branches now return their errors instead of an accidental zero: the
-`TIF_KSU_DISABLE_ESCAPE_WITH_ROOT` denial and `set_cred_ucounts` failure.
-Existing-root handling retains the official behavior.
+Only allowlisted su with successful root-profile application qualifies for the
+post-exec hook. FD installation also requires successful exec; normal exec,
+init-only handling, denied su, and early failures do not install a su FD.
+The disable-escape and `set_cred_ucounts` failure paths return their errors.
+SUSFS 2.3 common already contains the post-exec hook, so the old separate 2.2
+compatibility patch is removed.
 
-`susfs220-ksun341-post-exec.patch` changes only `common/fs/exec.c`, after the
-unchanged original SUSFS 2.2 common patch. It tracks a successful su rewrite,
-then calls the paired post-hook immediately after `bprm_execve` and before
-cleanup. The scoped FD is installed only when exec returns success. All early
-allocation/argument/copy failures skip that hook. This preserves the original
-SUSFS 2.2 userspace ABI; the existing matching helper remains compatible.
+The 2.3 interfaces add separate no-su/zygote-next flags, the filename-pointer
+faccessat hook, first-zygote bootstrap gating, and safe-mode static-key changes
+outside the input spinlock. WebView UID 1053 follows its existing umount policy
+explicitly because Next's `is_appuid` excludes it; this does not grant root.
 
-`ksun-version-pin.patch` supplies the verified release version inside Kleaf's
-sandbox, where the external KSU Git directory may not be visible.
+Official profile capabilities remain exact. The upstream expression
+`effective | CAP_DAC_READ_SEARCH` is omitted: capability number 2 is not a bit
+mask and that expression adds `CAP_DAC_OVERRIDE`. Nonzero-UID profiles without
+permission to traverse `/data/adb` may still fail to exec `ksud`. Newly granted
+root apps may need force-stop/reopen because the upstream no-su flag is cached.
 
-## Validation before compilation
+Stock ARM64 TIF indices are at most 28; SUSFS uses 33/34/35 and KSU uses 63, with
+no collision. No config switches, certificates, or ABI allowances are added.
+The version patch supplies the exact release identity inside Kleaf's sandbox.
 
-- The legacy KSU combined patch was reproduced byte-for-byte before porting.
-- The 24 affected original common files were downloaded at the pinned commit
-  and their Git blob IDs matched the commit's Gitiles directory trees.
-- The pinned common `.gitattributes` (`*.[ch] diff=cpp`) was reproduced. The
-  original common combined patch with 9-digit blob abbreviations reproduces
-  SHA256 `b21dd46c037ae5f68c8c0d4a36c73dfd4f686cb704190a49f6f579402625fc9c`.
-- New combined diffs use `--full-index`, so repository object-count-dependent
-  hash abbreviation cannot change their checksums.
-- Fresh official KSU worktree: strict `git apply --check`, apply, complete
-  combined hash check, version patch check/apply, and patched-tree
-  `git diff --check` passed.
-- Independent common checkout: original patch dry-run/apply and post-exec
-  `git apply --check`/apply passed; 27 common files remain affected, and only
-  `fs/exec.c` differs from the original SUSFS 2.2 patched output.
+## Helper and verification
 
-Compilation, strict ABI validation, temporary boot, and live root/SUSFS
-checks remain separate required gates. Custom nonzero-UID root profiles and
-application-specific hiding are not established by these source checks.
+Use the pinned 2.3 helper: the ctime mask changed from 1 to 256 despite the kstat
+structure retaining its ARM64 376-byte layout. Upstream module version is
+v2.3.0 but versionCode remains 202000. Deployment must enable `hide_sus_mnts`
+during post-fs-data, before zygote starts, with this matching helper.
+
+The 25 original common files match pinned Gitiles blob IDs; three SUSFS source
+files are added. Exact common `.gitattributes` and `--full-index` make the
+combined checksum reproducible. Fresh official KSU application, checksum,
+version-pin application, and patched-tree whitespace checks passed (24 files).
+Common dry-run/apply had no offsets, fuzz, or rejects; a second clean strict
+`git apply` reproduced the combined hash and 28-file scope. Seven verbatim
+upstream whitespace warnings remain: six in `fs/susfs.c`, one in `mm/memory.c`.
+
+Compilation, strict ABI validation, temporary boot, and live root/SUSFS checks
+remain separate gates. These source checks do not establish application hiding
+or support for every custom root profile.

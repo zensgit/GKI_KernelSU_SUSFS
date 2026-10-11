@@ -17,12 +17,12 @@ KSU_SHA=8f902aeb16033024143ae36cf711df902cf02fae
 KSU_REV_COUNT=3333
 KSU_VERSION=33333
 KSU_TAG=v3.4.1
-SUSFS_SHA=e7b28525f69ca5864bed7db51f77663f5adfe218
+SUSFS_SHA=a0f9c59e2243f8a5db955f4ad1686d5e0ad26e1a
 FIX_SHA=757201d983e2549dc7945a21fa6a056eb2e55263
-KSU_COMBINED_SHA256=7608282ea245d726054f477aa5d36285fa886f2b1f64a1c584300bb53d3254d0
-KERNEL_COMBINED_SHA256=9479f934d6fd479f5b7f31c4944eb485900fb81a7ce63a5fe42b4df07fbc7128
+KSU_COMBINED_SHA256=268cc412302504a4ad608bee9426473dfaade3047a3befb2b0438fe516d62f3a
+KERNEL_COMBINED_SHA256=094fffbe1eb8201d6ce1ce54807226ed045096946b1037893fb9482eccdc9d37
 KSU_PORT_REFERENCE_SHA=c4653cc4ca61a2160ad819d615ea42811e295192
-POST_EXEC_PATCH_SHA256=1ebe4b46e559a5210326b5182260a56dc95c1fd96ed395ce874a0feb8383baee
+SUSFS_HELPER_SHA256=eb727d479a0ff2d5557369c49a3e7492b5236a7c37499d235260e4ed4d24976d
 KSU_VERSION_PATCH_SHA256=7f451103f9f86e933cc46f358c9eff160e06211565f98b7d81d1916d2b970cc2
 KSU_DEFCONFIG_SHA256=5364f4b6a49522823078fac03bf9ecda3f944901185a4d2cf62560d7ca819658
 WORKSPACE_STATUS_SHA256=e81bc808f245f072c87b20cf2921b935cb015344d748d3a9f7c0c3f64e31ff44
@@ -46,12 +46,13 @@ test "$KSU_VERSION" = "$((30000 + KSU_REV_COUNT))"
 git clone --filter=blob:none --no-checkout https://gitlab.com/simonpunk/susfs4ksu.git "$SUSFS_DIR"
 git -C "$SUSFS_DIR" checkout --detach "$SUSFS_SHA"
 test "$(git -C "$SUSFS_DIR" rev-parse HEAD)" = "$SUSFS_SHA"
-grep -qx 'version=v2.2.0' "$SUSFS_DIR/ksu_module_susfs/module.prop"
+grep -qx 'version=v2.3.0' "$SUSFS_DIR/ksu_module_susfs/module.prop"
+echo "$SUSFS_HELPER_SHA256  $SUSFS_DIR/ksu_module_susfs/tools/ksu_susfs_arm64" | sha256sum -c -
 
-# The original SUSFS 2.2 / WildKernels compatibility patch is ported to the
+# The SUSFS 2.3 interfaces are ported from the validated manual-hook recipe to the
 # exact official 3.4.1 tree. Keep the reviewed combined patch in this recipe;
 # no runtime reject-fixing or fuzzy application is allowed.
-ksu_combined="$RECIPE_ROOT/patches/ksun341-susfs220.patch"
+ksu_combined="$RECIPE_ROOT/patches/ksun341-susfs230.patch"
 echo "$KSU_COMBINED_SHA256  $ksu_combined" | sha256sum -c -
 git -C "$KSU_DIR" apply --check "$ksu_combined"
 git -C "$KSU_DIR" apply "$ksu_combined"
@@ -81,14 +82,10 @@ patch --dry-run --batch --forward --no-backup-if-mismatch \
 patch --batch --forward --no-backup-if-mismatch \
   -d "$stage_common" -p1 \
   < "$SUSFS_DIR/kernel_patches/50_add_susfs_in_gki-android15-6.6.patch"
-# Paired post-exec hook adapted from the pinned reference above. The core
-# SUSFS 2.2 patch and userspace ABI remain unchanged.
-post_exec_patch="$RECIPE_ROOT/patches/susfs220-ksun341-post-exec.patch"
-echo "$POST_EXEC_PATCH_SHA256  $post_exec_patch" | sha256sum -c -
-git -C "$stage_common" apply --check "$post_exec_patch"
-git -C "$stage_common" apply "$post_exec_patch"
+# SUSFS 2.3 already contains the paired post-exec hook; do not apply the
+# previous 2.2 compatibility hunk a second time.
 test -z "$(find "$stage_common" -type f \( -name '*.rej' -o -name '*.orig' \) -print)"
-test "$(git -C "$stage_common" status --porcelain | wc -l | tr -d ' ')" = 27
+test "$(git -C "$stage_common" status --porcelain | wc -l | tr -d ' ')" = 28
 git -C "$stage_common" add -N \
   fs/susfs.c \
   include/linux/susfs.h \
@@ -146,7 +143,7 @@ git -C "$COMMON_DIR" config user.email 'xuanyuan-build@localhost'
 git -C "$COMMON_DIR" add -A
 GIT_AUTHOR_DATE='1779954526 +0000' \
 GIT_COMMITTER_DATE='1779954526 +0000' \
-  git -C "$COMMON_DIR" commit -m 'xuanyuan: add KernelSU Next 3.4.1 and SUSFS 2.2.0'
+  git -C "$COMMON_DIR" commit -m 'xuanyuan: add KernelSU Next 3.4.1 and SUSFS 2.3.0'
 test -z "$(git -C "$COMMON_DIR" status --porcelain)"
 
 expected_common_changes=$(printf '%s\n' \
@@ -170,6 +167,7 @@ expected_common_changes=$(printf '%s\n' \
   fs/readdir.c \
   fs/stat.c \
   fs/statfs.c \
+  fs/super.c \
   fs/susfs.c \
   include/linux/susfs.h \
   include/linux/susfs_def.h \
@@ -188,12 +186,12 @@ actual_common_changes=$(git -C "$COMMON_DIR" diff-tree \
   --no-commit-id --name-only -r HEAD | LC_ALL=C sort)
 test "$actual_common_changes" = "$expected_common_changes"
 
-printf 'FEATURE_SET=ksun_susfs_stock_trust\nCOMMON_BASE=%s\nKSU=%s\nKSU_REV_COUNT=%s\nKSU_VERSION=%s\nKSU_TAG=%s\nSUSFS=%s\nFIXES=%s\nKSU_COMBINED_SHA256=%s\nKSU_VERSION_PATCH_SHA256=%s\nKERNEL_COMBINED_SHA256=%s\nKSU_DEFCONFIG_SHA256=%s\nWORKSPACE_STATUS_SHA256=%s\nSTOCK_CERT_PEM_SHA256=%s\nSTOCK_CERT_DER_SHA256=%s\nSTOCK_CERT_SERIAL=%s\nSTOCK_CERT_SKID=%s\nKSU_PORT_REFERENCE=%s\nPOST_EXEC_PATCH_SHA256=%s\n' \
+printf 'FEATURE_SET=ksun_susfs_stock_trust\nCOMMON_BASE=%s\nKSU=%s\nKSU_REV_COUNT=%s\nKSU_VERSION=%s\nKSU_TAG=%s\nSUSFS=%s\nFIXES=%s\nKSU_COMBINED_SHA256=%s\nKSU_VERSION_PATCH_SHA256=%s\nKERNEL_COMBINED_SHA256=%s\nKSU_DEFCONFIG_SHA256=%s\nWORKSPACE_STATUS_SHA256=%s\nSTOCK_CERT_PEM_SHA256=%s\nSTOCK_CERT_DER_SHA256=%s\nSTOCK_CERT_SERIAL=%s\nSTOCK_CERT_SKID=%s\nKSU_PORT_REFERENCE=%s\nSUSFS_HELPER_SHA256=%s\n' \
   "$COMMON_SHA" "$KSU_SHA" "$KSU_REV_COUNT" "$KSU_VERSION" "$KSU_TAG" \
   "$SUSFS_SHA" "$FIX_SHA" "$KSU_COMBINED_SHA256" \
   "$KSU_VERSION_PATCH_SHA256" "$KERNEL_COMBINED_SHA256" \
   "$KSU_DEFCONFIG_SHA256" "$WORKSPACE_STATUS_SHA256" \
   "$STOCK_CERT_PEM_SHA256" "$STOCK_CERT_DER_SHA256" \
   "$STOCK_CERT_SERIAL" "$STOCK_CERT_SKID" \
-  "$KSU_PORT_REFERENCE_SHA" "$POST_EXEC_PATCH_SHA256" \
+  "$KSU_PORT_REFERENCE_SHA" "$SUSFS_HELPER_SHA256" \
   > "$KERNEL_ROOT/xuanyuan-build-pins.txt"
