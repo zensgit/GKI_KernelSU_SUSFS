@@ -1,15 +1,15 @@
-name: Xuanyuan EEA304 KernelSU Next 3.4.1 SUSFS 2.3 stock trust
+name: Xuanyuan Android 17 EEA OS4.0.0.6 KernelSU Next 3.4.1 SUSFS 2.3 stock trust
 
 on:
   push:
     branches:
-      - codex/xuanyuan-eea304-ksun341-susfs230
+      - codex/xuanyuan-a17-ksun341-susfs230
 
 permissions:
   contents: read
 
 concurrency:
-  group: xuanyuan-eea304-ksun341-susfs230
+  group: xuanyuan-a17-ksun341-susfs230
   cancel-in-progress: false
 
 jobs:
@@ -56,11 +56,11 @@ jobs:
           chmod 0755 "$RUNNER_TEMP/repo-bin/repo"
           echo "$RUNNER_TEMP/repo-bin" >> "$GITHUB_PATH"
 
-      - name: Sync exact AOSP GKI build 15511674 sources
+      - name: Sync exact AOSP GKI build 15863337 sources
         shell: bash
         run: |
           set -euo pipefail
-          echo "dbaa1ca849500f4e0cc421beb8b431eb957905379a1a1f9d6b0bfd7d6b5fb1c3  pins/manifest_15511674.xml" \
+          echo "b72b737069e5678b7cccf3c6bc5650f7dfec28e2c88d7da54b59432e1d63b0e7  pins/manifest_15863337.xml" \
             | sha256sum -c -
           mkdir -p kernel
           cd kernel
@@ -69,20 +69,20 @@ jobs:
             -b af46bb5ca8cdc8796f94a0734ec2fbbc085fc448 \
             --depth=1 \
             --repo-rev=v2.65
-          install -m 0644 "$GITHUB_WORKSPACE/pins/manifest_15511674.xml" \
-            .repo/manifests/manifest_15511674.xml
-          repo init -m manifest_15511674.xml --depth=1 --repo-rev=v2.65
+          install -m 0644 "$GITHUB_WORKSPACE/pins/manifest_15863337.xml" \
+            .repo/manifests/manifest_15863337.xml
+          repo init -m manifest_15863337.xml --depth=1 --repo-rev=v2.65
           repo sync \
             -j4 \
             --fail-fast \
             --force-sync \
             --no-clone-bundle \
             --no-tags
-          install -m 0644 "$GITHUB_WORKSPACE/pins/manifest_15511674.xml" \
-            manifest_15511674.xml
+          install -m 0644 "$GITHUB_WORKSPACE/pins/manifest_15863337.xml" \
+            manifest_15863337.xml
           test "$(git -C .repo/manifests rev-parse HEAD)" = af46bb5ca8cdc8796f94a0734ec2fbbc085fc448
-          test "$(git -C common rev-parse HEAD)" = e56cf6b09cca2151bcee244b3d334fb68685ff57
-          test "$(git -C build/kernel rev-parse HEAD)" = 6524d522479e9c95ee529a8d117e6c8e79a6608d
+          test "$(git -C common rev-parse HEAD)" = c4127a25dcf3c8923daffa62632816f6acf0e135
+          test "$(git -C build/kernel rev-parse HEAD)" = f71dbd37ecb1a45fadbcce80d1beeb5fb1833166
           test "$(git -C prebuilts/clang/host/linux-x86 rev-parse HEAD)" = 62dc563017359bca29c4a08f5f27d8ecae763462
           prebuilts/clang/host/linux-x86/clang-r510928/bin/clang --version
           df -h /
@@ -97,14 +97,14 @@ jobs:
         shell: bash
         working-directory: kernel
         env:
-          BUILD_NUMBER: "15511674"
+          BUILD_NUMBER: "15863337"
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/out/custom-dist"
           tools/bazel run \
             --jobs="$(nproc)" \
             --make_jobs="$(nproc)" \
-            --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
+            --repo_manifest="$PWD:$PWD/manifest_15863337.xml" \
             --extra_git_project=KernelSU-Next \
             --config=stamp \
             --defconfig_fragment=//common:xuanyuan_ksun_susfs_defconfig \
@@ -132,12 +132,12 @@ jobs:
         shell: bash
         working-directory: kernel
         env:
-          BUILD_NUMBER: "15511674"
+          BUILD_NUMBER: "15863337"
         run: |
           set -euo pipefail
           tools/bazel test \
             --jobs="$(nproc)" \
-            --repo_manifest="$PWD:$PWD/manifest_15511674.xml" \
+            --repo_manifest="$PWD:$PWD/manifest_15863337.xml" \
             --extra_git_project=KernelSU-Next \
             --config=stamp \
             --defconfig_fragment=//common:xuanyuan_ksun_susfs_defconfig \
@@ -150,7 +150,7 @@ jobs:
           set -euo pipefail
           echo "eb727d479a0ff2d5557369c49a3e7492b5236a7c37499d235260e4ed4d24976d  ksu_module_susfs/tools/ksu_susfs_arm64" \
             | sha256sum -c -
-          find ksu_module_susfs -exec touch -d '@1779954526' {} +
+          find ksu_module_susfs -exec touch -d '@1784123933' {} +
           bash build_ksu_module.sh
           test -s ksu_module_susfs.zip
 
@@ -186,11 +186,11 @@ jobs:
           custom_sha=$(sha256sum artifacts/Image | awk '{print $1}')
           echo "image_sha256=$custom_sha" >> "$GITHUB_OUTPUT"
           {
-            echo "## Xuanyuan EEA304 GKI + KernelSU Next + SUSFS"
+            echo "## Xuanyuan Android 17 EEA OS4.0.0.6 GKI + KernelSU Next + SUSFS"
             echo
             echo "- ABI gate: PASS"
             echo "- AOSP kernel tests: PASS"
-            echo "- Kernel release: 6.6.118-android15-8-ge56cf6b09cca-ab15511674-4k"
+            echo "- Kernel release: 6.6.118-android15-8-gc4127a25dcf3-ab15863337-4k"
             echo "- KernelSU Next: v3.4.1 / 33333"
             echo "- SUSFS: v2.3.0"
             echo "- Stock GKI module trust: embedded"
@@ -200,7 +200,7 @@ jobs:
       - name: Upload validated artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: xuanyuan-eea304-gki-ksun33333-susfs-v2.3.0-stock-trust
+          name: xuanyuan-a17-gki-ksun33333-susfs-v2.3.0-stock-trust
           path: artifacts/
           if-no-files-found: error
           retention-days: 7
